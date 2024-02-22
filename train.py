@@ -10,18 +10,15 @@ from sklearn.preprocessing import OneHotEncoder
 def train():
     """Trains a linear regression model on the full dataset and stores output."""
     # Load the data
-    data = pd.read_csv("data/properties_mod.csv")
+    data = pd.read_csv("data/properties.csv")
 
     # Define features to use
-    prop_features = ["property_type"]
-    bed_features = ["nbr_bedrooms"]
-    sqm_features = ["total_area_sqm"]
     num_features = ["nbr_frontages"]
     fl_features = ["fl_terrace"]
     cat_features = ["equipped_kitchen"]
 
     # Split the data into features and target
-    X = data[num_features + fl_features + cat_features + prop_features + sqm_features + bed_features]
+    X = data[num_features + fl_features + cat_features]
     y = data["price"]
 
     # Split the data into training and testing sets
@@ -86,4 +83,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-# First model score Train R² score: 0.05397297454466288, Test R² score: 0.06245931153935591
