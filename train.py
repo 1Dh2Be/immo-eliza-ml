@@ -1,9 +1,13 @@
 import joblib
 import pandas as pd
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
+import xgboost as xgb
+from sklearn.model_selection import GridSearchCV
+
+
+
 
 def clean_data(data):
     """Clean the dataset"""
@@ -32,6 +36,12 @@ def clean_data(data):
     # Delete the rows where there is no province
     data = data[data["province"] != "MISSING"]
     
+    # Drop the rows where 'primary_energy_consumption_sqm' is over 1000
+    data = data[data['primary_energy_consumption_sqm'] <= 1000]
+
+    # Drop the rows where there are more than 105 bedrooms
+    data = data[data['nbr_bedrooms'] <= 50]
+    
     return data
 
 def train():
@@ -43,11 +53,9 @@ def train():
     data = clean_data(data)
 
     # Define features to use
-    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm"]
+    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm", "latitude", "longitude", "terrace_sqm"]
     fl_features = ["fl_terrace", "fl_garden"]
     cat_features = ["subproperty_type", "province", "state_building", "property_type"]
-
-    all_features = data[num_features + fl_features + cat_features]
 
     # Split the data into features and target
     X = data[num_features + fl_features + cat_features]
@@ -59,7 +67,6 @@ def train():
     )
 
     # Convert categorical columns with one-hot encoding using OneHotEncoder
-
     enc = OneHotEncoder()
     enc.fit(X_train[cat_features])
     X_train_cat = enc.transform(X_train[cat_features]).toarray()
@@ -82,14 +89,34 @@ def train():
         axis=1,
     )
 
-    # Train the model
-    model = LinearRegression()
+    # Define the parameter grid
+    param_grid = {
+        'n_estimators': [650],
+        'max_depth': [7],
+        'learning_rate': [0.075],
+    }
+
+    # Initialize the XGBoost regressor
+    model = xgb.XGBRegressor(objective='reg:squarederror', random_state=505)
+
+    # Initialize the GridSearchCV object
+    grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=5, scoring='r2')
+
+    # Fit the GridSearchCV object to the data
+    grid_search.fit(X_train, y_train)
+
+    # Get the best parameters
+    best_params = grid_search.best_params_
+    print(best_params)
+
+    # Train the model with the best parameters
+    model = xgb.XGBRegressor(objective='reg:squarederror', random_state=505, **best_params)
     model.fit(X_train, y_train)
 
     # Evaluate the model
     train_score = r2_score(y_train, model.predict(X_train))
     test_score = r2_score(y_test, model.predict(X_test))
-    print(f"Train R² score: {train_score}")
+    print(f"Train R² score: {train_score}", end="")
     print(f"Test R² score: {test_score}")
 
     artifacts = {

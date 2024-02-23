@@ -65,4 +65,5 @@ def predict(input_dataset, output_dataset):
 
 
 if __name__ == "__main__":
+    # python predict.py -i "data/input.csv" -o "output/test.csv"
     predict()
