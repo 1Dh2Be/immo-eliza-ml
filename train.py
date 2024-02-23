@@ -23,11 +23,11 @@ def clean_data(data):
     )
     
     # Impute missing values for primary_energy_consumption_sqm based on property_type and province
-    median_energy_consumption_sqm = data.groupby(['property_type', 'province'])['primary_energy_consumption_sqm'].median()
+    median_energy_consumption_sqm = data.groupby(['subproperty_type', 'province'])['primary_energy_consumption_sqm'].median()
 
     # Fill missing values in 'primary_energy_consumption_sqm' based on median values per category
     data['primary_energy_consumption_sqm'] = data.apply(
-        lambda row: median_energy_consumption_sqm.loc[(row['property_type'], row['province'])] 
+        lambda row: median_energy_consumption_sqm.loc[(row['subproperty_type'], row['province'])] 
                      if pd.isna(row['primary_energy_consumption_sqm']) 
                      else row['primary_energy_consumption_sqm'],
         axis=1
@@ -53,9 +53,9 @@ def train():
     data = clean_data(data)
 
     # Define features to use
-    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm", "latitude", "longitude", "terrace_sqm"]
+    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm", "latitude", "longitude", "terrace_sqm", "construction_year"]
     fl_features = ["fl_terrace", "fl_garden"]
-    cat_features = ["subproperty_type", "province", "state_building", "property_type"]
+    cat_features = ["subproperty_type", "province", "state_building", "property_type", "region",]
 
     # Split the data into features and target
     X = data[num_features + fl_features + cat_features]
