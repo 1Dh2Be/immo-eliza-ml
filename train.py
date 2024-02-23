@@ -33,14 +33,24 @@ def clean_data(data):
         axis=1
     )
 
+    median_sqm_terace = data.groupby(["subproperty_type", "province"])["terrace_sqm"].median()
+
+    data["terrace_sqm"] = data.apply(
+        lambda row: median_sqm_terace.loc[(row['subproperty_type'], row['province'])] 
+                     if pd.isna(row['terrace_sqm']) 
+                     else row['terrace_sqm'],
+        axis=1
+    )
+
+
     # Delete the rows where there is no province
     data = data[data["province"] != "MISSING"]
     
     # Drop the rows where 'primary_energy_consumption_sqm' is over 1000
-    data = data[data['primary_energy_consumption_sqm'] <= 1000]
+    # data = data[data['primary_energy_consumption_sqm'] <= 1000]
 
-    # Drop the rows where there are more than 105 bedrooms
-    data = data[data['nbr_bedrooms'] <= 50]
+    # # Drop the rows where there are more than 105 bedrooms
+    # data = data[data['nbr_bedrooms'] <= 50]
     
     return data
 
