@@ -43,21 +43,14 @@ def train():
     data = clean_data(data)
 
     # Define features to use
-    prop_feature = "property_type"
-    province_feature = 'province'
-    subprop_feature = 'subproperty_type'
-    sqm_feature = 'total_area_sqm'
-    bedrooms_feature = 'nbr_bedrooms'
-    terrace_feature = 'fl_terrace'
-    garden_feature = 'fl_garden'
-    building_state = 'state_building'
-    energy_cons_feature = 'primary_energy_consumption_sqm'
+    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm"]
+    fl_features = ["fl_terrace", "fl_garden"]
+    cat_features = ["subproperty_type", "province", "state_building", "property_type"]
 
-    features = [prop_feature, province_feature, subprop_feature, sqm_feature, bedrooms_feature, 
-            terrace_feature, garden_feature, building_state, energy_cons_feature]
+    all_features = data[num_features + fl_features + cat_features]
 
     # Split the data into features and target
-    X = data[features]
+    X = data[num_features + fl_features + cat_features]
     y = data["price"]
 
     # Split the data into training and testing sets
@@ -65,33 +58,26 @@ def train():
         X, y, test_size=0.20, random_state=505
     )
 
-    # Impute missing values using SimpleImputer
-    # median = {}
-    # for column in ['total_area_sqm', 'primary_energy_consumption_sqm']:
-    #     median[column] = X_train.groupby(['property_type', 'province'])[column].median()
-
     # Convert categorical columns with one-hot encoding using OneHotEncoder
-    columns_to_encode = ["subproperty_type", "province", "state_building", "property_type"]
 
     enc = OneHotEncoder()
-    enc.fit(X_train[columns_to_encode])
-    X_train_cat = enc.transform(X_train[columns_to_encode]).toarray()
-    X_test_cat = enc.transform(X_test[columns_to_encode]).toarray()
+    enc.fit(X_train[cat_features])
+    X_train_cat = enc.transform(X_train[cat_features]).toarray()
+    X_test_cat = enc.transform(X_test[cat_features]).toarray()
 
     # Combine the numerical and one-hot encoded categorical columns
-    num_features = list(set(features) - set(columns_to_encode))  # assuming all other features are numerical
     X_train = pd.concat(
         [
-            X_train[num_features].reset_index(drop=True),
-            pd.DataFrame(X_train_cat, columns=enc.get_feature_names_out(input_features=columns_to_encode)),
+            X_train[num_features + fl_features].reset_index(drop=True),
+            pd.DataFrame(X_train_cat, columns=enc.get_feature_names_out()),
         ],
         axis=1,
     )
 
     X_test = pd.concat(
         [
-            X_test[num_features].reset_index(drop=True),
-            pd.DataFrame(X_test_cat, columns=enc.get_feature_names_out(input_features=columns_to_encode)),
+            X_test[num_features + fl_features].reset_index(drop=True),
+            pd.DataFrame(X_test_cat, columns=enc.get_feature_names_out()),
         ],
         axis=1,
     )
@@ -107,10 +93,14 @@ def train():
     print(f"Test R² score: {test_score}")
 
     artifacts = {
-        "features": features,
+        "features": {
+            "num_features": num_features,
+            "fl_features": fl_features,
+            "cat_features": cat_features,
+        },
+        "clean_data": clean_data,
         "enc": enc,
         "model": model,
-        "clean_data": clean_data
     }
     joblib.dump(artifacts, "models/artifacts.joblib")
 
