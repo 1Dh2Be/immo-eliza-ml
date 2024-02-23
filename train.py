@@ -1,24 +1,63 @@
 import joblib
 import pandas as pd
-from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 
+def clean_data(data):
+    """Clean the dataset"""
+    # Impute missing values for total_area_sqm based on property_type and subproperty_type
+    mean_sqm_per_category = data.groupby(['property_type', 'subproperty_type'])['total_area_sqm'].median()
+
+    # Fill missing values in 'total_area_sqm' based on median values per category
+    data['total_area_sqm'] = data.apply(
+        lambda row: mean_sqm_per_category.loc[(row['property_type'], row['subproperty_type'])] 
+                     if pd.isna(row['total_area_sqm']) 
+                     else row['total_area_sqm'],
+        axis=1
+    )
+    
+    # Impute missing values for primary_energy_consumption_sqm based on property_type and province
+    median_energy_consumption_sqm = data.groupby(['property_type', 'province'])['primary_energy_consumption_sqm'].median()
+
+    # Fill missing values in 'primary_energy_consumption_sqm' based on median values per category
+    data['primary_energy_consumption_sqm'] = data.apply(
+        lambda row: median_energy_consumption_sqm.loc[(row['property_type'], row['province'])] 
+                     if pd.isna(row['primary_energy_consumption_sqm']) 
+                     else row['primary_energy_consumption_sqm'],
+        axis=1
+    )
+
+    # Delete the rows where there is no province
+    data = data[data["province"] != "MISSING"]
+    
+    return data
 
 def train():
     """Trains a linear regression model on the full dataset and stores output."""
     # Load the data
     data = pd.read_csv("data/properties.csv")
 
+    #  Clean the data
+    data = clean_data(data)
+
     # Define features to use
-    num_features = ["nbr_frontages"]
-    fl_features = ["fl_terrace"]
-    cat_features = ["equipped_kitchen"]
+    prop_feature = "property_type"
+    province_feature = 'province'
+    subprop_feature = 'subproperty_type'
+    sqm_feature = 'total_area_sqm'
+    bedrooms_feature = 'nbr_bedrooms'
+    terrace_feature = 'fl_terrace'
+    garden_feature = 'fl_garden'
+    building_state = 'state_building'
+    energy_cons_feature = 'primary_energy_consumption_sqm'
+
+    features = [prop_feature, province_feature, subprop_feature, sqm_feature, bedrooms_feature, 
+            terrace_feature, garden_feature, building_state, energy_cons_feature]
 
     # Split the data into features and target
-    X = data[num_features + fl_features + cat_features]
+    X = data[features]
     y = data["price"]
 
     # Split the data into training and testing sets
@@ -27,35 +66,35 @@ def train():
     )
 
     # Impute missing values using SimpleImputer
-    imputer = SimpleImputer(strategy="mean")
-    imputer.fit(X_train[num_features])
-    X_train[num_features] = imputer.transform(X_train[num_features])
-    X_test[num_features] = imputer.transform(X_test[num_features])
+    # median = {}
+    # for column in ['total_area_sqm', 'primary_energy_consumption_sqm']:
+    #     median[column] = X_train.groupby(['property_type', 'province'])[column].median()
 
     # Convert categorical columns with one-hot encoding using OneHotEncoder
+    columns_to_encode = ["subproperty_type", "province", "state_building", "property_type"]
+
     enc = OneHotEncoder()
-    enc.fit(X_train[cat_features])
-    X_train_cat = enc.transform(X_train[cat_features]).toarray()
-    X_test_cat = enc.transform(X_test[cat_features]).toarray()
+    enc.fit(X_train[columns_to_encode])
+    X_train_cat = enc.transform(X_train[columns_to_encode]).toarray()
+    X_test_cat = enc.transform(X_test[columns_to_encode]).toarray()
 
     # Combine the numerical and one-hot encoded categorical columns
+    num_features = list(set(features) - set(columns_to_encode))  # assuming all other features are numerical
     X_train = pd.concat(
         [
-            X_train[num_features + fl_features].reset_index(drop=True),
-            pd.DataFrame(X_train_cat, columns=enc.get_feature_names_out()),
+            X_train[num_features].reset_index(drop=True),
+            pd.DataFrame(X_train_cat, columns=enc.get_feature_names_out(input_features=columns_to_encode)),
         ],
         axis=1,
     )
 
     X_test = pd.concat(
         [
-            X_test[num_features + fl_features].reset_index(drop=True),
-            pd.DataFrame(X_test_cat, columns=enc.get_feature_names_out()),
+            X_test[num_features].reset_index(drop=True),
+            pd.DataFrame(X_test_cat, columns=enc.get_feature_names_out(input_features=columns_to_encode)),
         ],
         axis=1,
     )
-
-    print(f"Features: \n {X_train.columns.tolist()}")
 
     # Train the model
     model = LinearRegression()
@@ -67,19 +106,13 @@ def train():
     print(f"Train R² score: {train_score}")
     print(f"Test R² score: {test_score}")
 
-    # Save the model
     artifacts = {
-        "features": {
-            "num_features": num_features,
-            "fl_features": fl_features,
-            "cat_features": cat_features,
-        },
-        "imputer": imputer,
+        "features": features,
         "enc": enc,
         "model": model,
+        "clean_data": clean_data
     }
     joblib.dump(artifacts, "models/artifacts.joblib")
-
 
 if __name__ == "__main__":
     train()
