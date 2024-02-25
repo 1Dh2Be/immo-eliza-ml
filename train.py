@@ -6,11 +6,23 @@ from sklearn.preprocessing import OneHotEncoder
 import xgboost as xgb
 from sklearn.model_selection import GridSearchCV
 
+def drop_outliers(data):
+    """Drops outliers in the data set"""
 
+    # Drop the rows where 'primary_energy_consumption_sqm' is over 1000
+    data = data[data['primary_energy_consumption_sqm'] <= 1000]
 
+    # Drop the rows where there are more than 105 bedrooms
+    data = data[data['nbr_bedrooms'] <= 50]
+
+    return data
 
 def clean_data(data):
     """Clean the dataset"""
+
+    # Delete the rows where there is no province
+    data = data[data["province"] != "MISSING"]
+
     # Impute missing values for total_area_sqm based on property_type and subproperty_type
     mean_sqm_per_category = data.groupby(['property_type', 'subproperty_type'])['total_area_sqm'].median()
 
@@ -42,15 +54,26 @@ def clean_data(data):
         axis=1
     )
 
+    median_sqm_garden = data.groupby(["subproperty_type", "province"])["garden_sqm"].mean()
 
-    # Delete the rows where there is no province
-    data = data[data["province"] != "MISSING"]
-    
-    # Drop the rows where 'primary_energy_consumption_sqm' is over 1000
-    # data = data[data['primary_energy_consumption_sqm'] <= 1000]
+    data["garden_sqm"] = data.apply(
+        lambda row: median_sqm_garden.loc[(row['subproperty_type'], row['province'])] 
+                     if pd.isna(row['garden_sqm']) 
+                     else row['garden_sqm'],
+        axis=1
+    )
 
-    # # Drop the rows where there are more than 105 bedrooms
-    # data = data[data['nbr_bedrooms'] <= 50]
+    for col in ["latitude", "longitude"]:
+
+        mean_construction_year = data.groupby(['province', 'locality'])[col].mean()
+
+        data[col] = data.apply(
+            lambda row: mean_construction_year.loc[(row['province'], row['locality'])] 
+                        if pd.isna(row[col]) 
+                        else row[col],
+            axis=1
+        )
+
     
     return data
 
@@ -59,13 +82,16 @@ def train():
     # Load the data
     data = pd.read_csv("data/properties.csv")
 
+    # Drop outliers
+    data = drop_outliers(data)
+
     #  Clean the data
     data = clean_data(data)
 
     # Define features to use
-    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm", "latitude", "longitude", "terrace_sqm", "construction_year"]
-    fl_features = ["fl_terrace", "fl_garden"]
-    cat_features = ["subproperty_type", "province", "state_building", "property_type", "region",]
+    num_features = ["total_area_sqm", "nbr_bedrooms", "primary_energy_consumption_sqm", "latitude", "longitude", "terrace_sqm", "construction_year", "garden_sqm", "surface_land_sqm"]
+    fl_features = ["fl_terrace", "fl_garden", "fl_furnished"]
+    cat_features = ["subproperty_type", "province", "state_building", "property_type"]
 
     # Split the data into features and target
     X = data[num_features + fl_features + cat_features]
